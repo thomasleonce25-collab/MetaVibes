@@ -1,0 +1,541 @@
+<head>
+
+<meta charset="utf-8" />
+
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+
+<title>Carrousel — Maquettes logo</title>
+
+<style>
+
+  :root{
+
+    --bg:#0f0f10; --card:#fff; --accent:#222;
+
+    --dot-size:10px;
+
+  }
+
+  html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial}
+
+  .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;box-sizing:border-box}
+
+  .carousel{
+
+    width:min(1100px,96vw);
+
+    max-width:1200px;
+
+    background:linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01));
+
+    border-radius:12px;
+
+    padding:18px;
+
+    box-shadow:0 8px 30px rgba(0,0,0,0.6);
+
+    position:relative;
+
+    overflow:hidden;
+
+  }
+
+  .track{
+
+    display:flex;
+
+    gap:14px;
+
+    transition:transform 600ms cubic-bezier(.22,.9,.32,1);
+
+    will-change:transform;
+
+    touch-action:pan-y;
+
+    padding-bottom:8px;
+
+  }
+
+  .slide{
+
+    min-width:100%;
+
+    flex:0 0 100%;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+  }
+
+  .card{
+
+    width:100%;
+
+    max-height:70vh;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:center;
+
+    overflow:hidden;
+
+    border-radius:10px;
+
+    background:var(--card);
+
+    padding:12px;
+
+  }
+
+  .card img{max-width:100%;max-height:70vh;object-fit:contain;display:block}
+
+  /* controls */
+
+  .nav{
+
+    position:absolute;left:12px;right:12px;bottom:12px;display:flex;justify-content:center;gap:8px;align-items:center;
+
+  }
+
+  .dots{display:flex;gap:8px}
+
+  .dot{width:var(--dot-size);height:var(--dot-size);border-radius:50%;background:rgba(255,255,255,0.25);cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,0.4)}
+
+  .dot.active{background:#fff}
+
+  .btn{
+
+    background:rgba(0,0,0,0.45);
+
+    border:none;color:#fff;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:600;
+
+    display:flex;align-items:center;gap:8px;
+
+  }
+
+  .btn:focus{outline:2px solid rgba(255,255,255,0.12)}
+
+  .arrow{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.35);border:none;color:#fff;padding:10px;border-radius:8px;cursor:pointer}
+
+  .arrow.left{left:12px}
+
+  .arrow.right{right:12px}
+
+  /* small */
+
+  @media (max-width:700px){
+
+    .arrow{padding:8px}
+
+    .nav{bottom:8px}
+
+  }
+
+</style>
+
+</head>
+
+<body>
+
+<div class="wrap">
+
+  <div class="carousel" id="carousel">
+
+    <button class="arrow left" id="prev" aria-label="Précedent">◀</button>
+
+    <button class="arrow right" id="next" aria-label="Suivant">▶</button>
+
+
+
+    <div id="track" class="track" aria-live="polite">
+
+      <!-- Slides seront injectées par JS -->
+
+    </div>
+
+
+
+    <div class="nav">
+
+      <div class="dots" id="dots" role="tablist" aria-label="Navigation des maquettes"></div>
+
+      <div style="flex:1"></div>
+
+      <button class="btn" id="pauseBtn" aria-pressed="false">Pause</button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+
+<script>
+
+/* === CONFIGURATION ===
+
+Remplace les URLs ci-dessous par celles de tes maquettes. Elles peuvent provenir d'un bucket (S3), d'un CDN,
+
+ou d'images hébergées sur Netlify/GitHub Pages.
+
+*/
+
+const images = [
+
+  "https://example.com/maquette1.jpg",
+
+  "https://example.com/maquette2.jpg",
+
+  "https://example.com/maquette3.jpg",
+
+  "https://example.com/maquette4.jpg"
+
+];
+
+
+
+const autoplayDelay = 2800; // ms
+
+const transitionMs = 600;
+
+
+
+const track = document.getElementById('track');
+
+const dotsWrap = document.getElementById('dots');
+
+const prevBtn = document.getElementById('prev');
+
+const nextBtn = document.getElementById('next');
+
+const pauseBtn = document.getElementById('pauseBtn');
+
+const carousel = document.getElementById('carousel');
+
+
+
+let index = 0;
+
+let playing = true;
+
+let timer = null;
+
+
+
+/* build slides (we add clones for seamless loop) */
+
+function buildSlides(){
+
+  track.innerHTML = "";
+
+  // create clones at end and start for loop illusion
+
+  const total = images.length;
+
+  const createSlide = (src, i) => {
+
+    const s = document.createElement('div');
+
+    s.className = "slide";
+
+    s.setAttribute('role','group');
+
+    s.setAttribute('aria-label', `Slide ${i+1} / ${total}`);
+
+    const c = document.createElement('div');
+
+    c.className = "card";
+
+    const img = document.createElement('img');
+
+    img.src = src;
+
+    img.alt = `Maquette ${i+1}`;
+
+    c.appendChild(img);
+
+    s.appendChild(c);
+
+    return s;
+
+  };
+
+
+
+  // append last clone
+
+  track.appendChild(createSlide(images[images.length-1], images.length-1));
+
+  // append real slides
+
+  images.forEach((src, i) => track.appendChild(createSlide(src, i)));
+
+  // append first clone
+
+  track.appendChild(createSlide(images[0], 0));
+
+}
+
+
+
+function buildDots(){
+
+  dotsWrap.innerHTML = "";
+
+  images.forEach((_, i) => {
+
+    const d = document.createElement('button');
+
+    d.className = 'dot';
+
+    d.setAttribute('aria-label', `Aller à la diapositive ${i+1}`);
+
+    d.addEventListener('click', () => goTo(i));
+
+    dotsWrap.appendChild(d);
+
+  });
+
+}
+
+
+
+function updateDots(){
+
+  const dots = dotsWrap.querySelectorAll('.dot');
+
+  dots.forEach((d, i) => d.classList.toggle('active', i === index));
+
+}
+
+
+
+/* positioning: because we added a cloned element at start, the "real" index 0 is at offset 1 */
+
+function setPosition(noAnim){
+
+  const slideW = carousel.clientWidth;
+
+  const offsetIndex = index + 1; // account for leading clone
+
+  if (noAnim) track.style.transition = 'none';
+
+  else track.style.transition = `transform ${transitionMs}ms cubic-bezier(.22,.9,.32,1)`;
+
+  track.style.transform = `translateX(-${offsetIndex * 100}%)`;
+
+  if (noAnim) {
+
+    // force reflow then restore
+
+    void track.offsetWidth;
+
+    track.style.transition = `transform ${transitionMs}ms cubic-bezier(.22,.9,.32,1)`;
+
+  }
+
+  updateDots();
+
+}
+
+
+
+function next(){
+
+  index = (index + 1) % images.length;
+
+  setPosition();
+
+}
+
+
+
+function prev(){
+
+  index = (index - 1 + images.length) % images.length;
+
+  setPosition();
+
+}
+
+
+
+function goTo(i){
+
+  index = ((i % images.length) + images.length) % images.length;
+
+  setPosition();
+
+}
+
+
+
+function startAuto(){
+
+  if (timer) clearInterval(timer);
+
+  timer = setInterval(() => {
+
+    next();
+
+  }, autoplayDelay);
+
+  playing = true;
+
+  pauseBtn.textContent = 'Pause';
+
+  pauseBtn.setAttribute('aria-pressed','false');
+
+}
+
+
+
+function stopAuto(){
+
+  if (timer) clearInterval(timer);
+
+  timer = null;
+
+  playing = false;
+
+  pauseBtn.textContent = 'Lecture';
+
+  pauseBtn.setAttribute('aria-pressed','true');
+
+}
+
+
+
+/* handle loop snap when hitting clones */
+
+track.addEventListener('transitionend', () => {
+
+  const slidesCount = images.length;
+
+  // if moved to clone at start (offset 0) -> jump to real last
+
+  if (index === slidesCount - 1 && track.style.transform.includes(`${(slidesCount+0) * 100}%`)) {
+
+    // not necessary; logic maintained by our index arithmetic
+
+  }
+
+  // no extra handling required because we used percent-based positioning with clones and index math
+
+});
+
+
+
+/* drag / swipe support */
+
+let startX = 0, deltaX = 0, dragging = false;
+
+track.addEventListener('pointerdown', e => {
+
+  dragging = true;
+
+  startX = e.clientX;
+
+  track.style.transition = 'none';
+
+  carousel.setPointerCapture(e.pointerId);
+
+});
+
+track.addEventListener('pointermove', e => {
+
+  if (!dragging) return;
+
+  deltaX = e.clientX - startX;
+
+  const w = carousel.clientWidth;
+
+  const px = -((index+1) * w) + deltaX;
+
+  track.style.transform = `translateX(${px}px)`;
+
+});
+
+track.addEventListener('pointerup', e => {
+
+  dragging = false;
+
+  track.style.transition = `transform ${transitionMs}ms cubic-bezier(.22,.9,.32,1)`;
+
+  const w = carousel.clientWidth;
+
+  if (Math.abs(deltaX) > Math.min(60, w * 0.15)) {
+
+    if (deltaX < 0) next(); else prev();
+
+  } else {
+
+    setPosition();
+
+  }
+
+  deltaX = 0;
+
+});
+
+track.addEventListener('pointercancel', () => { dragging = false; setPosition(); });
+
+
+
+/* events */
+
+nextBtn.addEventListener('click', () => { next(); resetAuto(); });
+
+prevBtn.addEventListener('click', () => { prev(); resetAuto(); });
+
+pauseBtn.addEventListener('click', () => {
+
+  if (playing) stopAuto(); else startAuto();
+
+});
+
+
+
+carousel.addEventListener('mouseenter', () => { stopAuto(); });
+
+carousel.addEventListener('mouseleave', () => { startAuto(); });
+
+
+
+function resetAuto(){
+
+  if (playing) startAuto();
+
+}
+
+
+
+/* responsive: recalc position on resize */
+
+window.addEventListener('resize', () => setPosition(true));
+
+
+
+/* init */
+
+buildSlides();
+
+buildDots();
+
+setPosition(true);
+
+startAuto();
+
+
+
+</script>
+
+</body>
+
+</html>
